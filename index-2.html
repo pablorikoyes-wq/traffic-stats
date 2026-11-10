@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Статистика связок</title>
+<!-- Здесь НЕТ адреса сервера и ключей: адрес API приходит из бота в ссылке (?api=...),
+     а доступ проверяется по подписи Telegram (initData) на сервере. -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+:root{
+  --bg: var(--tg-theme-secondary-bg-color, #0f1720);
+  --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #18222d));
+  --text: var(--tg-theme-text-color, #ffffff);
+  --hint: var(--tg-theme-hint-color, #7d8b99);
+  --link: var(--tg-theme-link-color, #62bcf9);
+  --accent: var(--tg-theme-button-color, #2ea6ff);
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  --head: var(--tg-theme-section-header-text-color, #62bcf9);
+  --sep: var(--tg-theme-section-separator-color, rgba(255,255,255,.08));
+  --good: #5fb641; --bad: #e65850; --warn: #f5bd25;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+body{padding:0 0 calc(24px + env(safe-area-inset-bottom))}
+.wrap{max-width:760px;margin:0 auto;padding:10px 12px}
+.card{background:var(--card);border-radius:14px;padding:14px 14px 12px;margin:0 0 12px}
+.h{font-size:13px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--head);margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.h small{text-transform:none;letter-spacing:0;font-weight:400;color:var(--hint)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;background:rgba(127,127,127,.14);border-radius:10px;padding:2px;gap:2px;overflow-x:auto;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:1 0 auto;border:0;background:transparent;color:var(--text);font:inherit;font-size:13px;padding:6px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.25);font-weight:600}
+select,input[type=date]{background:rgba(127,127,127,.14);color:var(--text);border:0;border-radius:10px;padding:8px 10px;font:inherit;min-width:0}
+select{width:100%;font-weight:600}
+.custom{display:none;margin-top:8px}
+.custom.on{display:flex}
+.custom input{flex:1 1 110px}
+.btn{border:0;background:var(--accent);color:var(--accent-text);border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+.ghost{border:0;background:transparent;color:var(--link);font:inherit;font-size:13px;cursor:pointer;padding:2px 4px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:rgba(127,127,127,.10);border-radius:12px;padding:10px}
+.kpi b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--hint)}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+#chart{width:100%;height:330px}
+#hours{width:100%;height:200px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip{--c:#3497ed;display:inline-flex;align-items:center;gap:6px;border:2px solid var(--c);background:var(--c);color:#fff;
+  border-radius:18px;padding:5px 12px 5px 8px;font:inherit;font-size:14px;font-weight:500;cursor:pointer;user-select:none;max-width:100%}
+.chip .ck{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.95);color:var(--c);font-size:11px;font-weight:800;display:grid;place-items:center;flex:none}
+.chip.off{background:transparent;color:var(--c)}
+.chip.off .ck{background:transparent;border:1.5px solid var(--c);color:transparent}
+.chip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note{font-size:12px;color:var(--hint);margin-top:8px}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 6px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--sep)}
+th{color:var(--hint);font-weight:500;cursor:pointer;user-select:none}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1}
+th.s::after{content:" ↓"} th.s.asc::after{content:" ↑"}
+tr.best td{background:rgba(95,182,65,.13)}
+tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cmp div{background:rgba(127,127,127,.10);border-radius:12px;padding:10px}
+.cmp b{font-size:20px}
+.cmp .win{outline:2px solid var(--good)}
+.state{text-align:center;color:var(--hint);padding:40px 16px}
+.state b{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+.spin{width:26px;height:26px;border:3px solid rgba(127,127,127,.3);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 12px}
+@keyframes s{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+.top{display:flex;gap:8px;align-items:center}
+.top select{flex:1}
+@media (max-width:420px){.kpis{grid-template-columns:repeat(2,1fr)} #chart{height:290px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="state" class="state"><div class="spin"></div>Загрузка…</div>
+
+  <div id="app" class="hidden">
+    <div class="card">
+      <div class="top">
+        <select id="chan" aria-label="Канал"></select>
+        <button class="ghost" id="reload" title="Обновить">⟳</button>
+      </div>
+      <div class="seg" id="period" style="margin-top:10px">
+        <button data-p="d">Сегодня</button><button data-p="7" class="on">7 дней</button>
+        <button data-p="30">30 дней</button><button data-p="90">90 дней</button><button data-p="c">Свой</button>
+      </div>
+      <div class="custom row" id="custom">
+        <input type="date" id="dfrom"> — <input type="date" id="dto">
+        <button class="btn" id="apply">OK</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="h">Итого за период <small id="range"></small></div>
+      <div class="kpis" id="kpis"></div>
+    </div>
+
+    <div class="card">
+      <div class="h">Связки <small id="tzlabel"></small></div>
+      <div class="seg" id="metric"></div>
+      <div class="row" style="margin-top:8px;justify-content:space-between">
+        <div class="seg" id="gran"><button data-g="day" class="on">По дням</button><button data-g="hour">По часам</button></div>
+        <div class="seg" id="tz"><button data-t="local" class="on" id="tzlocal">Manila</button><button data-t="utc">UTC</button></div>
+      </div>
+      <div id="chart"></div>
+      <div class="chips" id="chips"></div>
+      <div class="row" style="margin-top:8px;justify-content:space-between">
+        <button class="ghost" id="all">Выбрать все</button>
+        <span class="note" style="margin:0">Долгое нажатие — только эта связка</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="h">По часам суток <small id="hourslabel"></small></div>
+      <div id="hours"></div>
+    </div>
+
+    <div class="card" id="cmpcard">
+      <div class="h">🟢 Прямые vs 🟡 с заявками <small>удержание</small></div>
+      <div class="cmp" id="cmp"></div>
+    </div>
+
+    <div class="card">
+      <div class="h">Таблица связок
+        <span class="seg" id="kind" style="flex:0 0 auto"><button data-k="all" class="on">Все</button><button data-k="direct">🟢</button><button data-k="request">🟡</button></span>
+      </div>
+      <div class="tbl-wrap"><table id="tbl"></table></div>
+      <div class="note">«Осталось» и «Удерж.» — сколько из пришедших за период ещё в канале. 🏆 — лучшая связка (дешевле оставшийся подписчик, а без расходов — лучше удержание).</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready(); tg.expand();
+    try { tg.setHeaderColor("secondary_bg_color"); tg.setBackgroundColor("secondary_bg_color"); } catch (e) {}
+  }
+  var API = (new URLSearchParams(location.search).get("api") || "").replace(/\/+$/, "");
+  var PAL = ["#3497ED", "#5FB641", "#F5BD25", "#E65850", "#9D6FE6", "#F79E39", "#36C7C7", "#E05A9F",
+             "#7FA5FF", "#A8C545", "#C98A4B", "#4BB3D6", "#D96C6C", "#8E9CF0", "#58B98F", "#B98ADB"];
+  var ICON = { direct: "🟢", request: "🟡", other: "⚪" };
+  var METRICS = [
+    { k: "join", t: "Вступили" }, { k: "leave", t: "Отписались" }, { k: "net", t: "Прирост" },
+    { k: "request", t: "Заявки", req: true }, { k: "approved", t: "Принято", req: true }, { k: "pending", t: "Ожидает", req: true }
+  ];
+  var MON = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+  var S = { channels: [], chat: null, period: "7", from: null, to: null, gran: "day", tz: "local",
+            tzName: "Asia/Manila", tzOff: 28800, metric: "join", hidden: {}, kind: "all",
+            sort: { k: "joined", d: -1 }, data: null, colors: {} };
+  var $ = function (id) { return document.getElementById(id); };
+  var chart = null, hchart = null;
+
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim() || "#888"; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function n(x) { return x == null ? "—" : Math.round(x).toLocaleString("ru-RU"); }
+  function sg(x) { return (x >= 0 ? "+" : "−") + n(Math.abs(x)); }
+  function pct(x) { return x == null ? "—" : (Math.round(x * 10) / 10).toLocaleString("ru-RU") + "%"; }
+  function cur() { return (S.data && S.data.currency) || "$"; }
+  function money(x) { if (x == null || x === 0) return "—"; var v = Math.abs(x) < 100 ? x.toFixed(2) : Math.round(x).toLocaleString("ru-RU"); return cur() + v; }
+  function dur(s) { if (s == null) return "—"; s = Math.round(s); if (s < 3600) return Math.max(1, Math.round(s / 60)) + " мин"; if (s < 86400) return Math.round(s / 3600) + " ч"; return (Math.round(s / 8640) / 10).toLocaleString("ru-RU") + " д"; }
+  function haptic() { try { tg && tg.HapticFeedback && tg.HapticFeedback.selectionChanged(); } catch (e) {} }
+
+  function showState(title, text, spin) {
+    $("app").classList.add("hidden");
+    $("state").classList.remove("hidden");
+    $("state").innerHTML = (spin ? '<div class="spin"></div>' : "") + (title ? "<b>" + esc(title) + "</b>" : "") + esc(text || "");
+  }
+  function showApp() { $("state").classList.add("hidden"); $("app").classList.remove("hidden"); }
+
+  function api(path, params) {
+    var qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    var ctl = new AbortController();
+    var t = setTimeout(function () { ctl.abort(); }, 20000);
+    return fetch(API + path + qs, { headers: { "X-Init-Data": (tg && tg.initData) || "" }, signal: ctl.signal, cache: "no-store" })
+      .then(function (r) {
+        clearTimeout(t);
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || ("Ошибка " + r.status)); e.status = r.status; throw e; }
+          return j;
+        });
+      }, function (e) {
+        clearTimeout(t);
+        throw new Error(e.name === "AbortError" ? "Сервер не ответил за 20 секунд" : "Сервер недоступен");
+      });
+  }
+
+  // ── даты ──
+  function todayStr(off) { return new Date(Date.now() + off * 1000).toISOString().slice(0, 10); }
+  function addDays(s, k) { var d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10); }
+  function curOff() { return S.tz === "utc" ? 0 : S.tzOff; }
+  function periodRange() {
+    var t = todayStr(curOff());
+    if (S.period === "c" && S.from && S.to) return [S.from, S.to];
+    if (S.period === "d") return [t, t];
+    var k = parseInt(S.period, 10) || 7;
+    return [addDays(t, -(k - 1)), t];
+  }
+  function fmtLabel(s) {
+    var m = parseInt(s.slice(5, 7), 10) - 1, d = parseInt(s.slice(8, 10), 10);
+    return d + " " + MON[m] + (s.length > 10 ? " " + s.slice(11, 16) : "");
+  }
+
+  // ── загрузка ──
+  function boot() {
+    if (!tg || !tg.initData) { showState("Откройте из бота", "Эта страница работает только внутри Telegram — кнопка «📈 Статистика» в боте."); return; }
+    if (!API) { showState("Нет адреса сервера", "Откройте статистику кнопкой в боте (/menu) — бот передаёт адрес при запуске."); return; }
+    showState("", "Загрузка…", true);
+    api("/api/channels").then(function (j) {
+      S.channels = j.channels || [];
+      if (j.tz) S.tzName = j.tz;
+      if (j.tz_offset != null) S.tzOff = j.tz_offset;
+      $("tzlocal").textContent = S.tzName.split("/").pop().replace("_", " ");
+      if (!S.channels.length) { showState("Каналов нет", "Добавьте бота админом в канал."); return; }
+      var sel = $("chan");
+      sel.innerHTML = S.channels.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.title) + (c.pending ? " · ⏳" + n(c.pending) : "") + "</option>"; }).join("");
+      S.chat = S.channels[0].id;
+      showApp();
+      initCharts();
+      load();
+    }).catch(fail);
+  }
+
+  function fail(e) {
+    if (e.status === 401) showState("Нет доступа", "Подпись Telegram не прошла проверку или это не ваш аккаунт. Откройте заново из бота.");
+    else showState("Не удалось загрузить", e.message + ". Откройте /menu в боте и нажмите «📈 Статистика» заново.");
+  }
+
+  var loadSeq = 0;
+  function load() {
+    var r = periodRange(), my = ++loadSeq;
+    $("range").textContent = fmtLabel(r[0]) + (r[0] !== r[1] ? " – " + fmtLabel(r[1]) : "");
+    chart && chart.showLoading("default", { text: "", color: css("--accent"), maskColor: "rgba(0,0,0,0)" });
+    api("/api/stats", { chat_id: S.chat, from: r[0], to: r[1], gran: S.gran, tz: S.tz }).then(function (j) {
+      if (my !== loadSeq) return;
+      S.data = j;
+      j.links.forEach(function (l) {
+        var key = S.chat + ":" + l.id;
+        if (!(key in S.colors)) S.colors[key] = l.id === 0 ? "#8C9BAB" : PAL[Object.keys(S.colors).filter(function (k) { return k.indexOf(S.chat + ":") === 0 && !/:0$/.test(k); }).length % PAL.length];
+      });
+      chart && chart.hideLoading();
+      render();
+    }).catch(function (e) { chart && chart.hideLoading(); if (my === loadSeq) fail(e); });
+  }
+
+  function color(l) { return S.colors[S.chat + ":" + l.id] || "#8C9BAB"; }
+  function isHidden(l) { return !!S.hidden[S.chat + ":" + l.id]; }
+  function metricDef() { return METRICS.filter(function (m) { return m.k === S.metric; })[0]; }
+  function metricLinks() {
+    var m = metricDef(), d = S.data;
+    return d.links.filter(function (l) {
+      if (m.req) return l.kind === "request" || (l.kind === "other" && sum(l.series[m.k]) > 0);
+      if (l.kind === "other") return sum(l.series.join) + sum(l.series.leave) > 0;
+      return true;
+    });
+  }
+  function sum(a) { var s = 0; for (var i = 0; i < (a || []).length; i++) s += a[i]; return s; }
+
+  // ── отрисовка ──
+  function render() {
+    renderKpis(); renderMetricTabs(); renderChart(); renderChips(); renderHours(); renderCmp(); renderTable();
+    var tzn = S.tz === "utc" ? "UTC" : S.tzName;
+    $("tzlabel").textContent = tzn; $("hourslabel").textContent = tzn;
+  }
+
+  function renderKpis() {
+    var t = S.data.totals;
+    var items = [
+      ["Вступили", n(t.joined), ""], ["Отписались", n(t.left), ""], ["Прирост", sg(t.net), t.net >= 0 ? "pos" : "neg"],
+      ["Удержание", pct(t.retention), ""], ["Ждут заявки", n(t.pending), ""], ["Заявок / принято", n(t.requests) + " / " + n(t.approved), ""]
+    ];
+    if (t.spend) { items.push(["Расход", money(t.spend), ""], ["Цена подписчика", money(t.cpa), ""], ["Цена оставшегося", money(t.cpr), ""]); }
+    $("kpis").innerHTML = items.map(function (x) { return '<div class="kpi"><b class="' + x[2] + '">' + x[1] + "</b><span>" + x[0] + "</span></div>"; }).join("");
+  }
+
+  function renderMetricTabs() {
+    $("metric").innerHTML = METRICS.map(function (m) { return '<button data-m="' + m.k + '" class="' + (m.k === S.metric ? "on" : "") + '">' + m.t + "</button>"; }).join("");
+  }
+
+  function initCharts() {
+    chart = echarts.init($("chart"), null, { renderer: "canvas" });
+    hchart = echarts.init($("hours"), null, { renderer: "canvas" });
+    window.addEventListener("resize", function () { chart.resize(); hchart.resize(); });
+  }
+
+  function baseAxis() {
+    var hint = css("--hint"), sep = "rgba(127,127,127,.18)";
+    return {
+      axisLine: { lineStyle: { color: sep } }, axisTick: { show: false },
+      axisLabel: { color: hint, fontSize: 11 }, splitLine: { lineStyle: { color: sep } }
+    };
+  }
+  function tooltip() {
+    return {
+      trigger: "axis", confine: true, backgroundColor: css("--card"), borderColor: "rgba(127,127,127,.25)",
+      textStyle: { color: css("--text"), fontSize: 12 }, axisPointer: { type: "line", lineStyle: { color: "rgba(127,127,127,.5)" } },
+      formatter: function (ps) {
+        if (!ps.length) return "";
+        var rows = ps.slice().sort(function (a, b) { return b.value - a.value; });
+        var tot = 0; rows.forEach(function (p) { tot += p.value; });
+        return "<b>" + esc(ps[0].axisValueLabel) + "</b><br>" + rows.map(function (p) {
+          return '<span class="dot" style="background:' + p.color + '"></span>' + esc(p.seriesName) + " <b style='float:right;margin-left:14px'>" + n(p.value) + "</b>";
+        }).join("<br>") + (rows.length > 1 ? "<br><span style='color:" + css("--hint") + "'>Всего</span> <b style='float:right'>" + n(tot) + "</b>" : "");
+      }
+    };
+  }
+
+  function renderChart() {
+    var d = S.data, m = S.metric, ax = baseAxis();
+    var vis = metricLinks().filter(function (l) { return !isHidden(l); });
+    var labels = d.labels.map(fmtLabel);
+    var many = labels.length > 45;
+    var opt = {
+      animationDuration: 300, grid: { left: 6, right: 14, top: 14, bottom: 66, containLabel: true },
+      tooltip: tooltip(),
+      xAxis: Object.assign({ type: "category", data: labels, boundaryGap: false }, ax, { splitLine: { show: false } }),
+      yAxis: Object.assign({ type: "value", minInterval: 1 }, ax, { axisLine: { show: false } }),
+      dataZoom: [
+        { type: "inside", start: many ? 60 : 0, end: 100 },
+        { type: "slider", start: many ? 60 : 0, end: 100, height: 38, bottom: 8, left: 10, right: 14,
+          borderColor: "rgba(127,127,127,.25)", backgroundColor: "rgba(127,127,127,.06)",
+          fillerColor: "rgba(127,127,127,.18)", showDetail: false, brushSelect: false,
+          handleSize: "100%", handleStyle: { color: css("--card"), borderColor: "rgba(127,127,127,.6)" },
+          moveHandleSize: 0,
+          dataBackground: { lineStyle: { color: "rgba(127,127,127,.5)", width: 1 }, areaStyle: { color: "rgba(127,127,127,.12)" } },
+          selectedDataBackground: { lineStyle: { color: css("--accent"), width: 1 }, areaStyle: { color: "rgba(46,166,255,.15)" } } }
+      ],
+      series: vis.map(function (l) {
+        var c = color(l);
+        return { name: (ICON[l.kind] || "") + " " + l.name, type: "line", data: l.series[m], showSymbol: labels.length < 3,
+                 symbolSize: 6, lineStyle: { width: 2, color: c }, itemStyle: { color: c }, emphasis: { focus: "series" } };
+      })
+    };
+    if (!vis.length) opt.graphic = [{ type: "text", left: "center", top: "middle", style: { text: "Выберите связки ниже", fill: css("--hint"), fontSize: 14 } }];
+    chart.setOption(opt, true);
+  }
+
+  function renderChips() {
+    var ls = metricLinks();
+    $("chips").innerHTML = ls.length ? ls.map(function (l) {
+      return '<button class="chip' + (isHidden(l) ? " off" : "") + '" style="--c:' + color(l) + '" data-id="' + l.id + '">' +
+        '<span class="ck">✓</span><span class="nm">' + (ICON[l.kind] || "") + " " + esc(l.name) + (l.revoked ? " ⛔" : "") + "</span></button>";
+    }).join("") : '<span class="note">Нет связок для этого графика' + (metricDef().req ? " (заявки есть только у 🟡 ссылок)" : "") + "</span>";
+  }
+
+  function renderHours() {
+    var m = S.metric === "pending" ? "request" : S.metric;
+    var vis = metricLinks().filter(function (l) { return !isHidden(l); });
+    var tot = new Array(24).fill(0);
+    vis.forEach(function (l) { (l.hours[m] || []).forEach(function (v, i) { tot[i] += v; }); });
+    var ax = baseAxis(), mx = Math.max.apply(null, tot);
+    hchart.setOption({
+      animationDuration: 300, grid: { left: 6, right: 8, top: 10, bottom: 4, containLabel: true },
+      tooltip: { trigger: "axis", confine: true, backgroundColor: css("--card"), borderColor: "rgba(127,127,127,.25)",
+                 textStyle: { color: css("--text") }, formatter: function (p) { return p[0].axisValue + ":00 — <b>" + n(p[0].value) + "</b>"; } },
+      xAxis: Object.assign({ type: "category", data: tot.map(function (_, i) { return String(i).padStart(2, "0"); }) }, ax, { splitLine: { show: false } }),
+      yAxis: Object.assign({ type: "value", minInterval: 1 }, ax, { axisLine: { show: false } }),
+      series: [{ type: "bar", data: tot.map(function (v) { return { value: v, itemStyle: { color: v === mx && v ? css("--accent") : "rgba(127,127,127,.45)", borderRadius: [3, 3, 0, 0] } }; }), barCategoryGap: "25%" }]
+    }, true);
+  }
+
+  function renderCmp() {
+    var k = S.data.kinds, dct = k.direct, rq = k.request;
+    if (!dct.cohort && !rq.cohort) { $("cmpcard").classList.add("hidden"); return; }
+    $("cmpcard").classList.remove("hidden");
+    var rd = dct.retention || 0, rr = rq.retention || 0;
+    function box(icon, name, t, win) {
+      return '<div class="' + (win ? "win" : "") + '"><span class="note" style="margin:0">' + icon + " " + name + "</span><br><b>" + pct(t.retention) +
+        "</b><br><span class='note' style='margin:0'>пришли " + n(t.cohort) + " · остались " + n(t.remain) + (t.cpr ? " · " + money(t.cpr) + " за ост." : "") + "</span></div>";
+    }
+    $("cmp").innerHTML = box("🟢", "Прямые", dct, dct.cohort && rq.cohort && rd > rr) + box("🟡", "С заявками", rq, dct.cohort && rq.cohort && rr > rd);
+  }
+
+  var COLS = [
+    { k: "name", t: "Связка" }, { k: "requests", t: "Заявки" }, { k: "approved", t: "Принято" }, { k: "pending", t: "Ждут" },
+    { k: "joined", t: "Вступили" }, { k: "left", t: "Отпис." }, { k: "remain", t: "Осталось" }, { k: "retention", t: "Удерж." },
+    { k: "conv", t: "Конв." }, { k: "avg_leave", t: "До отписки" }, { k: "spend", t: "Расход" }, { k: "cpa", t: "Цена подп." }, { k: "cpr", t: "Цена ост." }
+  ];
+  function cell(r, k) {
+    var req = r.kind === "request";
+    switch (k) {
+      case "name": return '<span class="dot" style="background:' + color(r) + '"></span>' + (r.best ? "🏆 " : "") + (ICON[r.kind] || "") + " " + esc(r.name) + (r.revoked ? " ⛔" : "");
+      case "requests": case "approved": case "pending": return req ? n(r[k]) : "—";
+      case "retention": case "conv": return pct(r[k]);
+      case "avg_leave": return dur(r[k]);
+      case "spend": case "cpa": case "cpr": return money(r[k]);
+      default: return n(r[k]);
+    }
+  }
+  function renderTable() {
+    var rows = S.data.table.filter(function (r) { return S.kind === "all" || r.kind === S.kind; });
+    var k = S.sort.k, d = S.sort.d;
+    rows.sort(function (a, b) {
+      var x = a[k], y = b[k];
+      if (k === "name") return d * String(x).localeCompare(String(y));
+      if (x == null) x = -Infinity; if (y == null) y = -Infinity;
+      return d * (x - y);
+    });
+    var head = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c.k + '" class="' + (c.k === k ? "s" + (d > 0 ? " asc" : "") : "") + '">' + c.t + "</th>"; }).join("") + "</tr>";
+    var body = rows.length ? rows.map(function (r) { return '<tr class="' + (r.best ? "best" : "") + '">' + COLS.map(function (c) { return "<td>" + cell(r, c.k) + "</td>"; }).join("") + "</tr>"; }).join("")
+      : '<tr><td colspan="' + COLS.length + '" style="text-align:center;color:var(--hint)">Нет данных за период</td></tr>';
+    $("tbl").innerHTML = "<thead>" + head + "</thead><tbody>" + body + "</tbody>";
+  }
+
+  // ── события интерфейса ──
+  function segClick(id, attr, fn) {
+    $(id).addEventListener("click", function (e) {
+      var bt = e.target.closest("button"); if (!bt || !bt.dataset[attr]) return;
+      $(id).querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === bt); });
+      haptic(); fn(bt.dataset[attr]);
+    });
+  }
+  segClick("period", "p", function (p) {
+    S.period = p;
+    $("custom").classList.toggle("on", p === "c");
+    if (p === "c") { var r = periodRange(); $("dfrom").value = $("dfrom").value || addDays(r[1], -13); $("dto").value = $("dto").value || r[1]; return; }
+    load();
+  });
+  $("apply").addEventListener("click", function () {
+    var a = $("dfrom").value, b = $("dto").value; if (!a || !b) return;
+    if (a > b) { var t = a; a = b; b = t; }
+    S.from = a; S.to = b;
+    if (S.gran === "hour" && (new Date(b) - new Date(a)) / 864e5 > 92) { tg && tg.showAlert ? tg.showAlert("По часам — не больше 92 дней") : alert("По часам — не больше 92 дней"); return; }
+    load();
+  });
+  segClick("gran", "g", function (g) { S.gran = g; load(); });
+  segClick("tz", "t", function (t) { S.tz = t; load(); });
+  segClick("kind", "k", function (k) { S.kind = k; renderTable(); });
+  $("metric").addEventListener("click", function (e) {
+    var bt = e.target.closest("button"); if (!bt) return;
+    S.metric = bt.dataset.m; haptic(); renderMetricTabs(); renderChart(); renderChips(); renderHours();
+  });
+  $("chan").addEventListener("change", function () { S.chat = this.value; load(); });
+  $("reload").addEventListener("click", function () { haptic(); load(); });
+  $("all").addEventListener("click", function () {
+    var ls = metricLinks(), anyHidden = ls.some(isHidden);
+    ls.forEach(function (l) { S.hidden[S.chat + ":" + l.id] = !anyHidden; });
+    $("all").textContent = anyHidden ? "Скрыть все" : "Выбрать все";
+    haptic(); renderChart(); renderChips(); renderHours();
+  });
+  $("tbl").addEventListener("click", function (e) {
+    var th = e.target.closest("th"); if (!th) return;
+    var k = th.dataset.k;
+    S.sort = { k: k, d: S.sort.k === k ? -S.sort.d : (k === "name" ? 1 : -1) };
+    renderTable();
+  });
+
+  // переключатели связок: тап — вкл/выкл, долгое нажатие — только эта
+  var pressT = null, longDone = false;
+  var chipsEl = $("chips");
+  chipsEl.addEventListener("pointerdown", function (e) {
+    var c = e.target.closest(".chip"); if (!c) return;
+    longDone = false;
+    pressT = setTimeout(function () {
+      longDone = true;
+      metricLinks().forEach(function (l) { S.hidden[S.chat + ":" + l.id] = String(l.id) !== c.dataset.id; });
+      try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred("medium"); } catch (x) {}
+      renderChart(); renderChips(); renderHours();
+    }, 500);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { chipsEl.addEventListener(ev, function () { clearTimeout(pressT); }); });
+  chipsEl.addEventListener("click", function (e) {
+    var c = e.target.closest(".chip"); if (!c) return;
+    if (longDone) { longDone = false; return; }
+    var key = S.chat + ":" + c.dataset.id;
+    S.hidden[key] = !S.hidden[key];
+    haptic(); renderChart(); renderChips(); renderHours();
+  });
+  chipsEl.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  if (tg && tg.onEvent) tg.onEvent("themeChanged", function () { if (S.data) render(); });
+  boot();
+})();
+</script>
+</body>
+</html>
