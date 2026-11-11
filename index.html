@@ -78,6 +78,10 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
 #metric button{padding:7px 4px}
 .top{display:flex;gap:8px;align-items:center}
 .top select{flex:1}
+.chanbox{position:relative;flex:1;min-width:0}
+#chan{-webkit-appearance:none;appearance:none;font-size:18px;padding:14px 44px 14px 16px;min-height:54px;border-radius:14px;cursor:pointer;text-overflow:ellipsis}
+.chanbox::after{content:"";position:absolute;right:18px;top:50%;width:9px;height:9px;border-right:2px solid var(--hint);border-bottom:2px solid var(--hint);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+#reload{font-size:24px;width:54px;height:54px;flex:none;border-radius:14px;background:rgba(127,127,127,.14);color:var(--text)}
 @media (max-width:420px){.kpis{grid-template-columns:repeat(2,1fr)} #chart{height:290px}}
 </style>
 </head>
@@ -88,7 +92,7 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
   <div id="app" class="hidden">
     <div class="card">
       <div class="top">
-        <select id="chan" aria-label="Канал"></select>
+        <div class="chanbox"><select id="chan" aria-label="Канал"></select></div>
         <button class="ghost" id="reload" title="Обновить">⟳</button>
       </div>
       <div class="seg" id="period" style="margin-top:10px">
