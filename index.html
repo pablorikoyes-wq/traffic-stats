@@ -74,6 +74,8 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
 .spin{width:26px;height:26px;border:3px solid rgba(127,127,127,.3);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 12px}
 @keyframes s{to{transform:rotate(360deg)}}
 .hidden{display:none!important}
+#metric{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible}
+#metric button{padding:7px 4px}
 .top{display:flex;gap:8px;align-items:center}
 .top select{flex:1}
 @media (max-width:420px){.kpis{grid-template-columns:repeat(2,1fr)} #chart{height:290px}}
@@ -246,6 +248,10 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
     api("/api/stats", { chat_id: S.chat, from: r[0], to: r[1], gran: S.gran, tz: S.tz }).then(function (j) {
       if (my !== loadSeq) return;
       S.data = j;
+      if (!S.metricPicked) {
+        var t0 = j.totals || {};
+        S.metric = (t0.requests > t0.joined) ? "request" : "join";
+      }
       j.links.forEach(function (l) {
         var key = S.chat + ":" + l.id;
         if (!(key in S.colors)) S.colors[key] = l.id === 0 ? "#8C9BAB" : PAL[Object.keys(S.colors).filter(function (k) { return k.indexOf(S.chat + ":") === 0 && !/:0$/.test(k); }).length % PAL.length];
@@ -328,7 +334,7 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
       xAxis: Object.assign({ type: "category", data: labels, boundaryGap: false }, ax, { splitLine: { show: false } }),
       yAxis: Object.assign({ type: "value", minInterval: 1 }, ax, { axisLine: { show: false } }),
       dataZoom: [
-        { type: "inside", start: many ? 60 : 0, end: 100 },
+        { type: "inside", start: many ? 60 : 0, end: 100, zoomOnMouseWheel: false, moveOnMouseWheel: false, moveOnMouseMove: false, preventDefaultMouseMove: false },
         { type: "slider", start: many ? 60 : 0, end: 100, height: 38, bottom: 8, left: 10, right: 14,
           borderColor: "rgba(127,127,127,.25)", backgroundColor: "rgba(127,127,127,.06)",
           fillerColor: "rgba(127,127,127,.18)", showDetail: false, brushSelect: false,
@@ -440,7 +446,7 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
   segClick("kind", "k", function (k) { S.kind = k; renderTable(); });
   $("metric").addEventListener("click", function (e) {
     var bt = e.target.closest("button"); if (!bt) return;
-    S.metric = bt.dataset.m; haptic(); renderMetricTabs(); renderChart(); renderChips(); renderHours();
+    S.metric = bt.dataset.m; S.metricPicked = true; haptic(); renderMetricTabs(); renderChart(); renderChips(); renderHours();
   });
   $("chan").addEventListener("change", function () { S.chat = this.value; load(); });
   $("reload").addEventListener("click", function () { haptic(); load(); });
