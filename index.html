@@ -131,16 +131,16 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
     </div>
 
     <div class="card" id="cmpcard">
-      <div class="h">🟢 Прямые vs 🟡 с заявками <small>удержание</small></div>
+      <div class="h">Прямые и с заявками <small>удержание</small></div>
       <div class="cmp" id="cmp"></div>
     </div>
 
     <div class="card">
       <div class="h">Таблица связок
-        <span class="seg" id="kind" style="flex:0 0 auto"><button data-k="all" class="on">Все</button><button data-k="direct">🟢</button><button data-k="request">🟡</button></span>
+        <span class="seg" id="kind" style="flex:0 0 auto"><button data-k="all" class="on">Все</button><button data-k="direct">Прямые</button><button data-k="request">Заявки</button></span>
       </div>
       <div class="tbl-wrap"><table id="tbl"></table></div>
-      <div class="note">«Осталось» и «Удерж.» — сколько из пришедших за период ещё в канале. 🏆 — лучшая связка (дешевле оставшийся подписчик, а без расходов — лучше удержание).</div>
+      <div class="note">«Осталось» и «Удерж.» — сколько из пришедших за период ещё в канале. Выделена лучшая связка (дешевле оставшийся подписчик, а без расходов — лучше удержание).</div>
     </div>
   </div>
 </div>
@@ -156,7 +156,7 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
   var API = (new URLSearchParams(location.search).get("api") || "").replace(/\/+$/, "");
   var PAL = ["#3497ED", "#5FB641", "#F5BD25", "#E65850", "#9D6FE6", "#F79E39", "#36C7C7", "#E05A9F",
              "#7FA5FF", "#A8C545", "#C98A4B", "#4BB3D6", "#D96C6C", "#8E9CF0", "#58B98F", "#B98ADB"];
-  var ICON = { direct: "🟢", request: "🟡", other: "⚪" };
+  var ICON = { direct: "", request: "", other: "" };
   var METRICS = [
     { k: "join", t: "Вступили" }, { k: "leave", t: "Отписались" }, { k: "net", t: "Прирост" },
     { k: "request", t: "Заявки", req: true }, { k: "approved", t: "Принято", req: true }, { k: "pending", t: "Ожидает", req: true }
@@ -231,7 +231,7 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
       $("tzlocal").textContent = S.tzName.split("/").pop().replace("_", " ");
       if (!S.channels.length) { showState("Каналов нет", "Добавьте бота админом в канал."); return; }
       var sel = $("chan");
-      sel.innerHTML = S.channels.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.title) + (c.pending ? " · ⏳" + n(c.pending) : "") + "</option>"; }).join("");
+      sel.innerHTML = S.channels.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.title) + (c.pending ? " · " + n(c.pending) + " заявок" : "") + "</option>"; }).join("");
       S.chat = S.channels[0].id;
       showApp();
       initCharts();
@@ -349,7 +349,7 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
       ],
       series: vis.map(function (l) {
         var c = color(l);
-        return { name: (ICON[l.kind] || "") + " " + l.name, type: "line", data: l.series[m], showSymbol: labels.length < 3,
+        return { name: l.name, type: "line", data: l.series[m], showSymbol: labels.length < 3,
                  symbolSize: 6, lineStyle: { width: 2, color: c }, itemStyle: { color: c }, emphasis: { focus: "series" } };
       })
     };
@@ -361,8 +361,8 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
     var ls = metricLinks();
     $("chips").innerHTML = ls.length ? ls.map(function (l) {
       return '<button class="chip' + (isHidden(l) ? " off" : "") + '" style="--c:' + color(l) + '" data-id="' + l.id + '">' +
-        '<span class="ck">✓</span><span class="nm">' + (ICON[l.kind] || "") + " " + esc(l.name) + (l.revoked ? " ⛔" : "") + "</span></button>";
-    }).join("") : '<span class="note">Нет связок для этого графика' + (metricDef().req ? " (заявки есть только у 🟡 ссылок)" : "") + "</span>";
+        '<span class="ck">✓</span><span class="nm">' + esc(l.name) + (l.revoked ? " (отозвана)" : "") + "</span></button>";
+    }).join("") : '<span class="note">Нет связок для этого графика' + (metricDef().req ? " (заявки есть только у ссылок с заявками)" : "") + "</span>";
   }
 
   function renderHours() {
@@ -387,10 +387,10 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
     $("cmpcard").classList.remove("hidden");
     var rd = dct.retention || 0, rr = rq.retention || 0;
     function box(icon, name, t, win) {
-      return '<div class="' + (win ? "win" : "") + '"><span class="note" style="margin:0">' + icon + " " + name + "</span><br><b>" + pct(t.retention) +
+      return '<div class="' + (win ? "win" : "") + '"><span class="note" style="margin:0">' + name + "</span><br><b>" + pct(t.retention) +
         "</b><br><span class='note' style='margin:0'>пришли " + n(t.cohort) + " · остались " + n(t.remain) + (t.cpr ? " · " + money(t.cpr) + " за ост." : "") + "</span></div>";
     }
-    $("cmp").innerHTML = box("🟢", "Прямые", dct, dct.cohort && rq.cohort && rd > rr) + box("🟡", "С заявками", rq, dct.cohort && rq.cohort && rr > rd);
+    $("cmp").innerHTML = box("", "Прямые", dct, dct.cohort && rq.cohort && rd > rr) + box("", "С заявками", rq, dct.cohort && rq.cohort && rr > rd);
   }
 
   var COLS = [
@@ -401,7 +401,7 @@ tr.best td:first-child{background:color-mix(in srgb, var(--card) 85%, #5fb641)}
   function cell(r, k) {
     var req = r.kind === "request";
     switch (k) {
-      case "name": return '<span class="dot" style="background:' + color(r) + '"></span>' + (r.best ? "🏆 " : "") + (ICON[r.kind] || "") + " " + esc(r.name) + (r.revoked ? " ⛔" : "");
+      case "name": return '<span class="dot" style="background:' + color(r) + '"></span>' + esc(r.name) + (r.kind === "request" ? ' <span style="color:var(--hint)">· заявки</span>' : "") + (r.revoked ? ' <span style="color:var(--hint)">(отозвана)</span>' : "");
       case "requests": case "approved": case "pending": return req ? n(r[k]) : "—";
       case "retention": case "conv": return pct(r[k]);
       case "avg_leave": return dur(r[k]);
